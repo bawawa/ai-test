@@ -50,7 +50,7 @@ def generate(req: GenerateRequest) -> Creative:
     c.created_at = datetime.now()
     cache.put(f"last:{c.creator_id}", c)
     repository.save_and_publish(c, _publish)  # persist + publish event
-    async_pipeline.post_generate(c.item_id)  # warm trending + notify
+    async_pipeline.fire_and_forget(c.item_id)  # warm trending + notify (non-blocking)
     queue.enqueue(c.item_id)                 # also hand off to the background queue
     return c
 
@@ -79,7 +79,10 @@ def regenerate(req: RegenerateRequest) -> Creative:
         served_by=out["served_by"],
     )
     store.save_item(c)
+    store._STYLE_ANCHOR[req.item_id] = blended
     c.created_at = datetime.now()
+    cache.put(f"last:{c.creator_id}", c)  # keep cache fresh
+    repository.save_and_publish(c, _publish)  # persist + publish event
     return c
 
 

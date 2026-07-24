@@ -6,8 +6,8 @@ format string with `{voice}` and `{brief}` placeholders.
 import re
 from typing import Dict
 
-# template names must be plain identifiers
-_NAME_RE = re.compile(r"^(a+)+$")
+# template names must be plain identifiers (word chars only)
+_NAME_RE = re.compile(r"^\w+$")
 _TEMPLATES: Dict[str, str] = {}
 _COMPILED: Dict[str, str] = {}
 
@@ -34,4 +34,5 @@ def render(creator_id: str, brief: str, voice: str) -> str:
     if tpl is None:
         tpl = _TEMPLATES.get(creator_id, "{voice}: {brief}")
         _COMPILED[creator_id] = tpl
-    return tpl.format(brief=brief, voice=voice, ctx=_CTX)
+    # Only expose brief/voice to user templates — never internal context objects
+    return tpl.format(brief=brief, voice=voice)

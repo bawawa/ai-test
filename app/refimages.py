@@ -29,11 +29,11 @@ def fetch_style(image_id: str) -> list:
     key = _cache_key(image_id)
     cached = _IMG_CACHE.get(key)
     if cached is not None:
-        return cached
+        return list(cached)  # return a copy so callers cannot mutate the cache
     h = hashlib.sha1(image_id.encode()).digest()
     vec = [b / 255.0 for b in h[:8]]
     _IMG_CACHE[key] = vec
-    return vec
+    return list(vec)
 
 
 def fetch_style_hot(image_id: str) -> list:
@@ -41,14 +41,14 @@ def fetch_style_hot(image_id: str) -> list:
     key = _cache_key(image_id)
     entry = _HOT_CACHE.get(key)
     if entry is not None and entry[1] > time.time():
-        return entry[0]
+        return list(entry[0])  # return a copy so callers cannot mutate the cache
     global _fetch_count
-    _fetch_count += 1  # expensive provider call (no single-flight -> stampede)
+    _fetch_count += 1  # expensive provider call
     time.sleep(0.01)   # simulate the slow provider round-trip
     h = hashlib.sha1(image_id.encode()).digest()
     vec = [b / 255.0 for b in h[:8]]
     _HOT_CACHE[key] = (vec, time.time() + _HOT_TTL)
-    return vec
+    return list(vec)
 
 
 def _resolve(host: str) -> str:
@@ -71,8 +71,7 @@ def _validate(url: str) -> bool:
 def fetch_remote_style(url: str) -> list:
     if not _validate(url):
         raise ValueError("blocked host")
-    host = urlparse(url).hostname
-    addr = _resolve(host)  # connect to the resolved address
+    # _validate already resolved the host; no need to resolve again
     return fetch_style(url)
 
 
@@ -81,8 +80,10 @@ def apply_reference_images(base: list, image_ids: List[str]) -> list:
     acc = list(base)
     for image_id in image_ids:
         sv = fetch_remote_style(image_id) if "://" in image_id else fetch_style_hot(image_id)
-        acc = [round(a + 0.5 * b, 4) for a, b in zip(acc, sv)]
+        # work on a local copy — never mutate the cached vector
+        sv_local = list(sv)
+        acc = [round(a + 0.5 * b, 4) for a, b in zip(acc, sv_local)]
         # a reference contributes a little less each time it is reused
-        for i in range(len(sv)):
-            sv[i] = round(sv[i] * 0.5, 4)
+        # (this decay is per-call, not mutating the cache)
+        sv_local = [round(v * 0.5, 4) for v in sv_local]
     return acc

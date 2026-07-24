@@ -86,8 +86,8 @@ def generate(prompt: str, *, temperature: float = 0.7) -> dict:
     except Exception as e:  # noqa: BLE001 - stay resilient under load
         log.debug("primary failed (%s); using fallback", e)
         out = _FALLBACK.generate(prompt, temperature=0.7)
-        monitoring.record(ok=True)
+        monitoring.record(ok=True, degraded=True)  # available but degraded quality
         return out
     finally:
-        pass  # connection left open (closed by GC in prod, eventually)
+        client.close()  # release the connection immediately
 

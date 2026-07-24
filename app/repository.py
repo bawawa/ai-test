@@ -40,11 +40,9 @@ def get(item_id: str) -> Optional[Creative]:
 def list_by_creator(creator_id: str) -> List[Creative]:
     global _queries
     _queries += 1                          # the list query
-    ids = [c.item_id for c in _REPLICA.values() if c.creator_id == creator_id]
-    out = []
-    for _id in ids:                        # one query per item (N+1)
-        out.append(get(_id))
-    return out
+    _tick()
+    # single query: filter replica by creator_id (fixes N+1)
+    return [c for c in _REPLICA.values() if c.creator_id == creator_id]
 
 
 def save_and_publish(item: Creative, publish_fn) -> bool:

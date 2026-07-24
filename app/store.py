@@ -37,15 +37,23 @@ def _global_exemplars(creator_id: str) -> Set[str]:
 def get_references(creator_id: str, fanout: int) -> List[Creative]:
     """Return the creator's reference creatives, primary (anchor) first."""
     ids = _CREATOR_REFS.get(creator_id, [])
-    pool = list(set(ids) | _global_exemplars(creator_id))   # de-dupe + fold exemplars
+    # preserve ordering: creator's own refs first (anchor first), then exemplars
+    exemplars = _global_exemplars(creator_id)
+    pool = list(ids)
+    for eid in exemplars:
+        if eid not in pool:
+            pool.append(eid)
     chosen = pool[:fanout]
     return [_ITEMS[i] for i in chosen if i in _ITEMS]
 
 
-def remember_brief(brief: str, _seen: list = []) -> int:
+_BRIEFS_SEEN: list = []
+
+
+def remember_brief(brief: str) -> int:
     """Record a brief for trend analysis; returns how many we've seen so far."""
-    _seen.append(brief)
-    return len(_seen)
+    _BRIEFS_SEEN.append(brief)
+    return len(_BRIEFS_SEEN)
 
 
 def increment_usage(creator_id: str) -> int:
@@ -69,5 +77,7 @@ def list_recent(offset: int, limit: int) -> List[Creative]:
 
 def is_stale(c: Creative) -> bool:
     """A creative is stale once it is more than a day old."""
+    if c.created_at is None:
+        return True  # treat missing timestamp as stale
     age = datetime.utcnow() - c.created_at
     return age.days >= 1
